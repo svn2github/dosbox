@@ -23,7 +23,7 @@
 #include "setup.h"
 #include "paging.h"
 #include "regs.h"
-
+#include "redpill.h"
 #include <string.h>
 
 #define PAGES_IN_BLOCK	((1024*1024)/MEM_PAGE_SIZE)
@@ -559,7 +559,7 @@ public:
 			LOG_MSG("Memory sizes above %d MB are NOT recommended.",SAFE_MEMORY - 1);
 			LOG_MSG("Stick with the default values unless you are absolutely certain.");
 		}
-		MemBase = new Bit8u[memsize*1024*1024];
+		MemBase = new("DOSBOX_RAM") Bit8u[memsize*1024*1024];
 		if (!MemBase) E_Exit("Can't allocate main memory of %d MB",memsize);
 		/* Clear the memory, as new doesn't always give zeroed memory
 		 * (Visual C debug mode). We want zeroed memory though. */
@@ -594,7 +594,7 @@ public:
 		MEM_A20_Enable(false);
 	}
 	~MEMORY(){
-		delete [] MemBase;
+		operator delete [] ((void*)MemBase, "DOSBOX_RAM");
 		delete [] memory.phandlers;
 		delete [] memory.mhandles;
 	}
