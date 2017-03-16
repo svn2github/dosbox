@@ -1,4 +1,4 @@
-## dosbox with redpill v0.1
+# dosbox-redpill v0.1
 
 ### Platform
 linux x86_64
@@ -26,6 +26,7 @@ sudo make install
 # run once and exit
 src/dosbox
 >exit
+
 # find 'memsize' and change it
 leafpad ~/.dosbox/dosbox-SVN.conf
 >memsize=1
