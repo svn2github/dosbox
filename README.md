@@ -1,14 +1,14 @@
-#dosbox with redpill v0.1
+## dosbox with redpill v0.1
 
-###Platform
+### Platform
 linux x86_64
 
-###Download
+### Download
 ```bash
 git clone https://github.com/mathfigure/dosbox
 ```
 
-###Build
+### Build
 ```bash
 cd dosbox
 ./autogen.sh
@@ -16,12 +16,12 @@ cd dosbox
 make
 ```
 
-###Install (optional)
+### Install (optional)
 ```bash
 sudo make install
 ```
 
-###Config
+### Config
 ```bash
 # run once and exit
 src/dosbox
@@ -31,12 +31,12 @@ leafpad ~/.dosbox/dosbox-SVN.conf
 >memsize=1
 ```
 
-###Run
+### Run
 ```bash
 dosbox
 ```
 
-###Test
+### Test
 ```bash
 hexedit /dev/shm/DOSBOX_RAM
 ffplay /dev/shm/DOSBOX_RAM -f rawvideo -video_size 1024x1024 -pixel_format gray -framerate 25 -loop 0
