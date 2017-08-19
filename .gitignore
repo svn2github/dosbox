@@ -17,6 +17,7 @@ Makefile.in
 /missing
 /stamp-h1
 /src/dosbox
+/src/dosprog
 
 *.a
 *.o
