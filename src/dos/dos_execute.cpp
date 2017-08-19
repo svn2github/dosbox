@@ -25,6 +25,7 @@
 #include "regs.h"
 #include "callback.h"
 #include "debug.h"
+#include "calltrace.h"
 #include "cpu.h"
 
 const char * RunningProgram="DOSBOX";
@@ -516,6 +517,7 @@ bool DOS_Execute(char * name,PhysPt block_pt,Bit8u flags) {
 #if C_DEBUG		
 		/* Started from debug.com, then set breakpoint at start */
 		DEBUG_CheckExecuteBreakpoint(RealSeg(csip),RealOff(csip));
+		CALLTRACE_StartTrace(RealSeg(csip),RealOff(csip));
 #endif
 		return true;
 	}

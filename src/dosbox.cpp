@@ -101,6 +101,7 @@ void PIC_Init(Section*);
 void TIMER_Init(Section*);
 void BIOS_Init(Section*);
 void DEBUG_Init(Section*);
+void CALLTRACE_Init(Section*);
 void CMOS_Init(Section*);
 
 void MSCDEX_Init(Section*);
@@ -509,6 +510,7 @@ void DOSBOX_Init(void) {
 
 #if C_DEBUG
 	secprop=control->AddSection_prop("debug",&DEBUG_Init);
+  secprop=control->AddSection_prop("calltrace", &CALLTRACE_Init);
 #endif
 
 	secprop=control->AddSection_prop("sblaster",&SBLASTER_Init,true);//done
