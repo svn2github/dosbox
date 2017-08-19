@@ -1896,9 +1896,20 @@ static void erasemapperfile() {
 
 
 //extern void UI_Init(void);
-int main(int argc, char* argv[]) {
+int main(int, char* argv[]) {
 	try {
-		CommandLine com_line(argc,argv);
+		char currentDir[256];
+		if (!getcwd(currentDir, sizeof(currentDir)))
+			return 1;
+		std::string mountCmd = std::string("mount C \"") + currentDir + "\"";
+        const char *largv[] = {
+            argv[0],
+			"-c", mountCmd.c_str(),
+			"-c", "c:",
+			"-c", "runapp",
+			"-c", "exit"
+        };
+		CommandLine com_line(sizeof(largv) / sizeof(largv[0]), largv);
 		Config myconf(&com_line);
 		control=&myconf;
 		/* Init the configuration system and add default values */
