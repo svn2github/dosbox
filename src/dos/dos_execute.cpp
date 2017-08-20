@@ -31,29 +31,6 @@
 
 const char * RunningProgram="DOSBOX";
 
-#ifdef _MSC_VER
-#pragma pack(1)
-#endif
-struct EXE_Header {
-	Bit16u signature;					/* EXE Signature MZ or ZM */
-	Bit16u extrabytes;					/* Bytes on the last page */
-	Bit16u pages;						/* Pages in file */
-	Bit16u relocations;					/* Relocations in file */
-	Bit16u headersize;					/* Paragraphs in header */
-	Bit16u minmemory;					/* Minimum amount of memory */
-	Bit16u maxmemory;					/* Maximum amount of memory */
-	Bit16u initSS;
-	Bit16u initSP;
-	Bit16u checksum;
-	Bit16u initIP;
-	Bit16u initCS;
-	Bit16u reloctable;
-	Bit16u overlay;
-} GCC_ATTRIBUTE(packed);
-#ifdef _MSC_VER
-#pragma pack()
-#endif
-
 #define MAGIC1 0x5a4d
 #define MAGIC2 0x4d5a
 #define MAXENV 32768u
@@ -291,7 +268,7 @@ static bool LoadExeHeader(Bit16u fhandle, bool& iscom, EXE_Header& head)
 	return true;
 }
 
-bool DOS_Execute(const char * name, const bool iscom, const EXE_Header& head, const Bitu headersize, const Bitu imagesize, const Bit8u *codebuf, const RealPt *relocations, DOS_ParamBlock& block, const Bit8u flags) {
+bool DOS_Execute(const char * name, const bool iscom, const EXE_Header& head, const Bitu imagesize, const Bit8u *codebuf, const RealPt *relocations, DOS_ParamBlock& block, const Bit8u flags) {
 	Bit16u pspseg,envseg,loadseg,memsize;
 
 	if (flags!=OVERLAY) {
@@ -529,11 +506,12 @@ bool DOS_Execute(const char * name,PhysPt block_pt,Bit8u flags)
 		Bit32u pos = headersize;
 		DOS_SeekFile(fhandle, &pos, DOS_SEEK_SET);
 		while (left > 0) {
-			Bit16u size = left < 0x8000 ? (Bit16u)left : 0x8000;
+			Bit16u block = left < 0x8000 ? (Bit16u)left : 0x8000;
+			Bit16u size = block;
 			if (!DOS_ReadFile(fhandle, codebuf + offset, &size))
 				E_Exit("Error reading EXE image");
-			offset += size;
-			left -= size;
+			offset += block;
+			left -= block;
 		}
 
 		relocations.reserve(head.relocations);
@@ -544,9 +522,44 @@ bool DOS_Execute(const char * name,PhysPt block_pt,Bit8u flags)
 			Bit16u readsize=4;DOS_ReadFile(fhandle,(Bit8u *)&relocpt,&readsize);
 			relocations.push_back(host_readd((HostPt)&relocpt));		//Endianize
 		}
+		if (strcmp(name, "prog.exe") == 0) {
+			FILE *img = fopen("image.c", "wb");
+			fprintf(img, "EXE_Header app_EXE_header = { /* %s */\n", name);
+			fprintf(img, "    0x%04x,\n", head.signature);
+			fprintf(img, "    %d,\n", head.extrabytes);
+			fprintf(img, "    %d,\n", head.pages);
+			fprintf(img, "    %d,\n", head.relocations);
+			fprintf(img, "    %d,\n", head.headersize);
+			fprintf(img, "    %d,\n", head.minmemory);
+			fprintf(img, "    %d,\n", head.maxmemory);
+			fprintf(img, "    0x%04x,\n", head.initSS);
+			fprintf(img, "    0x%04x,\n", head.initSP);
+			fprintf(img, "    0x%04x,\n", head.checksum);
+			fprintf(img, "    0x%04x,\n", head.initIP);
+			fprintf(img, "    0x%04x,\n", head.initCS);
+			fprintf(img, "    0x%04x,\n", head.reloctable);
+			fprintf(img, "    %d,\n", head.overlay);
+			fprintf(img, "\n};\n");
+			fprintf(img, "RealPt app_relocations[%d] = {", (int)relocations.size());
+			for (Bitu i = 0; i < relocations.size(); ++i) {
+				if (i % 4 == 0)
+					fprintf(img, "\n    ");
+				fprintf(img, "0x%08x,", relocations[i]);
+			}
+			fprintf(img, "\n};\n");
+			fprintf(img, "Bitu app_image_size = %d;\n", (int)imagesize);
+			fprintf(img, "Bit8u app_image[%d] = {", (int)imagesize);
+			for (Bitu i = 0; i < imagesize; ++i) {
+				if (i % 16 == 0)
+					fprintf(img, "\n    ");
+				fprintf(img, "0x%02x,", codebuf[i]);
+			}
+			fprintf(img, "\n};\n");
+			fclose(img);
+		}
 	}
 
-	bool ok = DOS_Execute(name, iscom, head, headersize, imagesize, codebuf, &relocations[0], block, flags);
+	bool ok = DOS_Execute(name, iscom, head, imagesize, codebuf, &relocations[0], block, flags);
 	DOS_CloseFile(fhandle);
 	free(codebuf);
 	return ok;

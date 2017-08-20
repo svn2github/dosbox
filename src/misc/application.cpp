@@ -7,6 +7,12 @@ class APPLICATION;
 
 static APPLICATION *instance;
 
+extern EXE_Header app_EXE_header;
+extern RealPt app_relocations[];
+extern Bitu app_image_size;
+extern Bit8u app_image[];
+
+
 class APPLICATION : public Program
 {
 public:
@@ -45,10 +51,11 @@ private:
 		line[0]=0;
 
 		/* Check for a full name */
-		p_fullname = DOS_Shell().Which(name);
-		if (!p_fullname) return;
+		if (app_image_size == 0)
+			p_fullname = DOS_Shell().Which(name);
+		else
+			p_fullname = name;
 		strcpy(fullname,p_fullname);
-		const char* extension = strrchr(fullname,'.');
 
 		/* Run the .exe or .com file from the shell */
 		/* Allocate some stack space for tables in physical memory */
@@ -88,8 +95,14 @@ private:
 		SegSet16(es,SegValue(ss));
 		reg_bx=reg_sp;
 		SETFLAGBIT(IF,false);
-		if (!DOS_Execute(fullname, SegPhys(es)+reg_bx, 0))
-			E_Exit("DOS_Execute failed");
+		if (app_image_size == 0) {
+			if (!DOS_Execute(fullname, SegPhys(es)+reg_bx, 0))
+				E_Exit("DOS_Execute failed");
+		}
+		else {
+			if (!DOS_Execute(fullname, false, app_EXE_header, app_image_size, app_image, app_relocations, block, 0))
+				E_Exit("DOS_Execute failed");
+		}
 		// RETF
 		reg_eip = CPU_Pop16();
 		SegSet16(cs,CPU_Pop16());

@@ -40,6 +40,31 @@ struct CommandTail{
 #pragma pack ()
 #endif
 
+#ifdef _MSC_VER
+#pragma pack(1)
+#endif
+struct EXE_Header {
+	Bit16u signature;					/* EXE Signature MZ or ZM */
+	Bit16u extrabytes;					/* Bytes on the last page */
+	Bit16u pages;						/* Pages in file */
+	Bit16u relocations;					/* Relocations in file */
+	Bit16u headersize;					/* Paragraphs in header */
+	Bit16u minmemory;					/* Minimum amount of memory */
+	Bit16u maxmemory;					/* Maximum amount of memory */
+	Bit16u initSS;
+	Bit16u initSP;
+	Bit16u checksum;
+	Bit16u initIP;
+	Bit16u initCS;
+	Bit16u reloctable;
+	Bit16u overlay;
+} GCC_ATTRIBUTE(packed);
+#ifdef _MSC_VER
+#pragma pack()
+#endif
+
+class DOS_ParamBlock;
+
 struct DOS_Date {
 	Bit16u year;
 	Bit8u month;
@@ -155,6 +180,7 @@ void DOS_SetupDevices(void);
 bool DOS_NewPSP(Bit16u pspseg,Bit16u size);
 bool DOS_ChildPSP(Bit16u pspseg,Bit16u size);
 bool DOS_Execute(const char * name,PhysPt block,Bit8u flags);
+bool DOS_Execute(const char * name, const bool iscom, const EXE_Header& head, const Bitu imagesize, const Bit8u *codebuf, const RealPt *relocations, DOS_ParamBlock& block, const Bit8u flags);
 void DOS_Terminate(Bit16u pspseg,bool tsr,Bit8u exitcode);
 
 /* Memory Handling Routines */
