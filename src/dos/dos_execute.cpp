@@ -19,6 +19,7 @@
 
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
 #include "dosbox.h"
 #include "mem.h"
 #include "dos_inc.h"
@@ -108,12 +109,12 @@ void DOS_Terminate(Bit16u pspseg,bool tsr,Bit8u exitcode) {
 
 	dos.return_code=exitcode;
 	dos.return_mode=(tsr)?(Bit8u)RETURN_TSR:(Bit8u)RETURN_EXIT;
-	
+
 	DOS_PSP curpsp(pspseg);
 	if (pspseg==curpsp.GetParent()) return;
 	/* Free Files owned by process */
 	if (!tsr) curpsp.CloseFiles();
-	
+
 	/* Get the termination address */
 	RealPt old22 = curpsp.GetInt22();
 	/* Restore vector 22,23,24 */
@@ -124,7 +125,7 @@ void DOS_Terminate(Bit16u pspseg,bool tsr,Bit8u exitcode) {
 
 	/* Restore the SS:SP to the previous one */
 	SegSet16(ss,RealSeg(parentpsp.GetStack()));
-	reg_sp = RealOff(parentpsp.GetStack());		
+	reg_sp = RealOff(parentpsp.GetStack());
 	/* Restore the old CS:IP from int 22h */
 	RestoreRegisters();
 	/* Set the CS:IP stored in int 0x22 back on the stack */
@@ -160,7 +161,7 @@ void DOS_Terminate(Bit16u pspseg,bool tsr,Bit8u exitcode) {
 	return;
 }
 
-static bool MakeEnv(char * name,Bit16u * segment) {
+static bool MakeEnv(const char * name,Bit16u * segment) {
 	/* If segment to copy environment is 0 copy the caller's environment */
 	DOS_PSP psp(dos.psp());
 	PhysPt envread,envwrite;
@@ -256,78 +257,64 @@ static void SetupCMDLine(Bit16u pspseg,DOS_ParamBlock & block) {
 	psp.SetCommandTail(block.exec.cmdtail);
 }
 
-bool DOS_Execute(char * name,PhysPt block_pt,Bit8u flags) {
-	EXE_Header head;Bitu i;
-	Bit16u fhandle;Bit16u len;Bit32u pos;
-	Bit16u pspseg,envseg,loadseg,memsize,readsize;
-	PhysPt loadaddress;RealPt relocpt;
-	Bitu headersize=0,imagesize=0;
-	DOS_ParamBlock block(block_pt);
-
-	block.LoadData();
-	//Remove the loadhigh flag for the moment!
-	if(flags&0x80) LOG(LOG_EXEC,LOG_ERROR)("using loadhigh flag!!!!!. dropping it");
-	flags &= 0x7f;
-	if (flags!=LOADNGO && flags!=OVERLAY && flags!=LOAD) {
-		DOS_SetError(DOSERR_FORMAT_INVALID);
+static bool LoadExeHeader(Bit16u fhandle, bool& iscom, EXE_Header& head)
+{
+	iscom = false;
+	Bit16u len=sizeof(EXE_Header);
+	if (!DOS_ReadFile(fhandle,(Bit8u *)&head,&len))
 		return false;
-//		E_Exit("DOS:Not supported execute mode %d for file %s",flags,name);
-	}
-	/* Check for EXE or COM File */
-	bool iscom=false;
-	if (!DOS_OpenFile(name,OPEN_READ,&fhandle)) {
-		DOS_SetError(DOSERR_FILE_NOT_FOUND);
-		return false;
-	}
-	len=sizeof(EXE_Header);
-	if (!DOS_ReadFile(fhandle,(Bit8u *)&head,&len)) {
-		DOS_CloseFile(fhandle);
-		return false;
-	}
 	if (len<sizeof(EXE_Header)) {
 		if (len==0) {
 			/* Prevent executing zero byte files */
 			DOS_SetError(DOSERR_ACCESS_DENIED);
-			DOS_CloseFile(fhandle);
 			return false;
 		}
 		/* Otherwise must be a .com file */
 		iscom=true;
-	} else {
-		/* Convert the header to correct endian, i hope this works */
-		HostPt endian=(HostPt)&head;
-		for (i=0;i<sizeof(EXE_Header)/2;i++) {
-			*((Bit16u *)endian)=host_readw(endian);
-			endian+=2;
-		}
-		if ((head.signature!=MAGIC1) && (head.signature!=MAGIC2)) iscom=true;
-		else {
-			if(head.pages & ~0x07ff) /* 1 MB dos maximum address limit. Fixes TC3 IDE (kippesoep) */
-				LOG(LOG_EXEC,LOG_NORMAL)("Weird header: head.pages > 1 MB");
-			head.pages&=0x07ff;
-			headersize = head.headersize*16;
-			imagesize = head.pages*512-headersize; 
-			if (imagesize+headersize<512) imagesize = 512-headersize;
+		return true;
+	}
+	/* Convert the header to correct endian, i hope this works */
+	HostPt endian=(HostPt)&head;
+	for (Bitu i=0;i<sizeof(EXE_Header)/2;i++) {
+		*((Bit16u *)endian)=host_readw(endian);
+		endian+=2;
+	}
+	if ((head.signature!=MAGIC1) && (head.signature!=MAGIC2))
+	{
+		iscom=true;
+		return true;
+	}
+
+	if(head.pages & ~0x07ff) /* 1 MB dos maximum address limit. Fixes TC3 IDE (kippesoep) */
+		LOG(LOG_EXEC,LOG_NORMAL)("Weird header: head.pages > 1 MB");
+	head.pages&=0x07ff;
+	return true;
+}
+
+bool DOS_Execute(const char * name, const bool iscom, const EXE_Header& head, const Bitu headersize, const Bitu imagesize, const Bit8u *codebuf, const RealPt *relocations, DOS_ParamBlock& block, const Bit8u flags) {
+	{
+		FILE *exec_log = fopen("DOS_Execute.log", "ab");
+		if (exec_log)
+		{
+			fprintf(exec_log, "%s %d\n", name, flags);
+			fclose(exec_log);
 		}
 	}
-	Bit8u * loadbuf=(Bit8u *)new Bit8u[0x10000];
+	Bit16u pspseg,envseg,loadseg,memsize;
+
 	if (flags!=OVERLAY) {
 		/* Create an environment block */
 		envseg=block.exec.envseg;
 		if (!MakeEnv(name,&envseg)) {
-			DOS_CloseFile(fhandle);
 			return false;
 		}
-		/* Get Memory */		
+		/* Get Memory */
 		Bit16u minsize,maxsize;Bit16u maxfree=0xffff;DOS_AllocateMemory(&pspseg,&maxfree);
 		if (iscom) {
 			minsize=0x1000;maxsize=0xffff;
 			if (machine==MCH_PCJR) {
-				/* try to load file into memory below 96k */ 
-				pos=0;DOS_SeekFile(fhandle,&pos,DOS_SEEK_SET);	
-				Bit16u dataread=0x1800;
-				DOS_ReadFile(fhandle,loadbuf,&dataread);
-				if (dataread<0x1800) maxsize=dataread;
+				/* try to load file into memory below 96k */
+				if (imagesize<0x1800) maxsize=imagesize;
 				if (minsize>maxsize) minsize=maxsize;
 			}
 		} else {	/* Exe size calculated from header */
@@ -337,14 +324,9 @@ bool DOS_Execute(char * name,PhysPt block_pt,Bit8u flags) {
 		}
 		if (maxfree<minsize) {
 			if (iscom) {
-				/* Reduce minimum of needed memory size to filesize */
-				pos=0;DOS_SeekFile(fhandle,&pos,DOS_SEEK_SET);	
-				Bit16u dataread=0xf800;
-				DOS_ReadFile(fhandle,loadbuf,&dataread);
-				if (dataread<0xf800) minsize=((dataread+0x10)>>4)+0x20;
+				if (imagesize<0xf800) minsize=((imagesize+0x10)>>4)+0x20;
 			}
 			if (maxfree<minsize) {
-				DOS_CloseFile(fhandle);
 				DOS_SetError(DOSERR_INSUFFICIENT_MEMORY);
 				DOS_FreeMemory(envseg);
 				return false;
@@ -374,40 +356,22 @@ bool DOS_Execute(char * name,PhysPt block_pt,Bit8u flags) {
 		}
 	} else loadseg=block.overlay.loadseg;
 	/* Load the executable */
-	loadaddress=PhysMake(loadseg,0);
+	PhysPt loadaddress=PhysMake(loadseg,0);
 
 	if (iscom) {	/* COM Load 64k - 256 bytes max */
-		pos=0;DOS_SeekFile(fhandle,&pos,DOS_SEEK_SET);	
-		readsize=0xffff-256;
-		DOS_ReadFile(fhandle,loadbuf,&readsize);
-		MEM_BlockWrite(loadaddress,loadbuf,readsize);
+		MEM_BlockWrite(loadaddress,codebuf,imagesize);
 	} else {	/* EXE Load in 32kb blocks and then relocate */
-		pos=headersize;DOS_SeekFile(fhandle,&pos,DOS_SEEK_SET);	
-		while (imagesize>0x7FFF) {
-			readsize=0x8000;DOS_ReadFile(fhandle,loadbuf,&readsize);
-			MEM_BlockWrite(loadaddress,loadbuf,readsize);
-//			if (readsize!=0x8000) LOG(LOG_EXEC,LOG_NORMAL)("Illegal header");
-			loadaddress+=0x8000;imagesize-=0x8000;
-		}
-		if (imagesize>0) {
-			readsize=(Bit16u)imagesize;DOS_ReadFile(fhandle,loadbuf,&readsize);
-			MEM_BlockWrite(loadaddress,loadbuf,readsize);
-//			if (readsize!=imagesize) LOG(LOG_EXEC,LOG_NORMAL)("Illegal header");
-		}
+		MEM_BlockWrite(loadaddress, codebuf, imagesize);
 		/* Relocate the exe image */
 		Bit16u relocate;
 		if (flags==OVERLAY) relocate=block.overlay.relocation;
 		else relocate=loadseg;
-		pos=head.reloctable;DOS_SeekFile(fhandle,&pos,0);
-		for (i=0;i<head.relocations;i++) {
-			readsize=4;DOS_ReadFile(fhandle,(Bit8u *)&relocpt,&readsize);
-			relocpt=host_readd((HostPt)&relocpt);		//Endianize
+		for (Bitu i=0;i<head.relocations;i++) {
+			RealPt relocpt = relocations[i];
 			PhysPt address=PhysMake(RealSeg(relocpt)+loadseg,RealOff(relocpt));
 			mem_writew(address,mem_readw(address)+relocate);
 		}
 	}
-	delete[] loadbuf;
-	DOS_CloseFile(fhandle);
 
 	/* Setup a psp */
 	if (flags!=OVERLAY) {
@@ -469,7 +433,7 @@ bool DOS_Execute(char * name,PhysPt block_pt,Bit8u flags) {
 		index=0;
 		while (index<8) {
 			if (stripname[index]=='.') break;
-			if (!stripname[index]) break;	
+			if (!stripname[index]) break;
 			index++;
 		}
 		memset(&stripname[index],0,8-index);
@@ -514,7 +478,7 @@ bool DOS_Execute(char * name,PhysPt block_pt,Bit8u flags) {
 		reg_di=RealOff(sssp);
 		reg_bp=0x91c;	/* DOS internal stack begin relict */
 		SegSet16(ds,pspseg);SegSet16(es,pspseg);
-#if C_DEBUG		
+#if C_DEBUG
 		/* Started from debug.com, then set breakpoint at start */
 		DEBUG_CheckExecuteBreakpoint(RealSeg(csip),RealOff(csip));
 		CALLTRACE_StartTrace(RealSeg(csip),RealOff(csip));
@@ -522,4 +486,76 @@ bool DOS_Execute(char * name,PhysPt block_pt,Bit8u flags) {
 		return true;
 	}
 	return false;
+}
+
+bool DOS_Execute(const char * name,PhysPt block_pt,Bit8u flags)
+{
+	//Remove the loadhigh flag for the moment!
+	if(flags&0x80) LOG(LOG_EXEC,LOG_ERROR)("using loadhigh flag!!!!!. dropping it");
+	flags &= 0x7f;
+	if (flags!=LOADNGO && flags!=OVERLAY && flags!=LOAD) {
+		DOS_SetError(DOSERR_FORMAT_INVALID);
+		return false;
+//		E_Exit("DOS:Not supported execute mode %d for file %s",flags,name);
+	}
+
+	Bit16u fhandle;
+	if (!DOS_OpenFile(name,OPEN_READ,&fhandle)) {
+		DOS_SetError(DOSERR_FILE_NOT_FOUND);
+		return false;
+	}
+
+	DOS_ParamBlock block(block_pt);
+	block.LoadData();
+
+	bool iscom=false;
+	EXE_Header head;
+
+	if (!LoadExeHeader(fhandle, iscom, head))
+		return false;
+
+	Bitu headersize = iscom ? 0 : head.headersize*16;
+	Bitu imagesize = 0x10000;
+	if (!iscom) {
+		imagesize = head.pages*512-headersize;
+		if (imagesize+headersize<512) imagesize = 512-headersize;
+	}
+
+	Bit8u *codebuf = (Bit8u *)malloc(imagesize);
+	std::vector<RealPt> relocations;
+
+	if (iscom) {
+		Bit32u pos = headersize;
+		DOS_SeekFile(fhandle, &pos, DOS_SEEK_SET);
+		Bit16u size = 0xffff-256;
+		DOS_ReadFile(fhandle, codebuf, &size);
+		imagesize = size;
+	}
+	else {
+		Bitu left = imagesize;
+		Bitu offset = 0;
+		Bit32u pos = headersize;
+		DOS_SeekFile(fhandle, &pos, DOS_SEEK_SET);
+		while (left > 0) {
+			Bit16u size = left < 0x8000 ? (Bit16u)left : 0x8000;
+			if (!DOS_ReadFile(fhandle, codebuf + offset, &size))
+				E_Exit("Error reading EXE image");
+			offset += size;
+			left -= size;
+		}
+
+		relocations.reserve(head.relocations);
+		pos = head.reloctable;
+		DOS_SeekFile(fhandle, &pos, DOS_SEEK_SET);
+		for (Bitu i=0;i<head.relocations;i++) {
+			RealPt relocpt;
+			Bit16u readsize=4;DOS_ReadFile(fhandle,(Bit8u *)&relocpt,&readsize);
+			relocations.push_back(host_readd((HostPt)&relocpt));		//Endianize
+		}
+	}
+
+	bool ok = DOS_Execute(name, iscom, head, headersize, imagesize, codebuf, &relocations[0], block, flags);
+	DOS_CloseFile(fhandle);
+	free(codebuf);
+	return ok;
 }

@@ -154,7 +154,7 @@ void DOS_SetupDevices(void);
 /* Execute and new process creation */
 bool DOS_NewPSP(Bit16u pspseg,Bit16u size);
 bool DOS_ChildPSP(Bit16u pspseg,Bit16u size);
-bool DOS_Execute(char * name,PhysPt block,Bit8u flags);
+bool DOS_Execute(const char * name,PhysPt block,Bit8u flags);
 void DOS_Terminate(Bit16u pspseg,bool tsr,Bit8u exitcode);
 
 /* Memory Handling Routines */
@@ -302,10 +302,10 @@ public:
 	RealPt	GetInt22			(void)					{ return sGet(sPSP,int_22);			};
 	void	SetFCB1				(RealPt src);
 	void	SetFCB2				(RealPt src);
-	void	SetCommandTail		(RealPt src);	
+	void	SetCommandTail		(RealPt src);
 	bool	SetNumFiles			(Bit16u fileNum);
 	Bit16u	FindEntryByHandle	(Bit8u handle);
-			
+
 private:
 	#ifdef _MSC_VER
 	#pragma pack(1)
@@ -336,7 +336,7 @@ private:
 		Bit8u	fcb1[16];			/* first FCB */
 		Bit8u	fcb2[16];			/* second FCB */
 		Bit8u	fill_4[4];			/* unused */
-		CommandTail cmdtail;		
+		CommandTail cmdtail;
 	} GCC_ATTRIBUTE(packed);
 	#ifdef _MSC_VER
 	#pragma pack()
@@ -394,7 +394,7 @@ public:
 	#ifdef _MSC_VER
 	#pragma pack(1)
 	#endif
-	struct sDIB {		
+	struct sDIB {
 		Bit8u	unknown1[4];
 		Bit16u	magicWord;			// -0x22 needs to be 1
 		Bit8u	unknown2[8];
@@ -456,7 +456,7 @@ public:
 
 	void SetupSearch(Bit8u _sdrive,Bit8u _sattr,char * _pattern);
 	void SetResult(const char * _name,Bit32u _size,Bit16u _date,Bit16u _time,Bit8u _attr);
-	
+
 	Bit8u GetSearchDrive(void);
 	void GetSearchParams(Bit8u & _sattr,char * _spattern);
 	void GetResult(char * _name,Bit32u & _size,Bit16u & _date,Bit16u & _time,Bit8u & _attr);
@@ -471,7 +471,7 @@ private:
 	#endif
 	struct sDTA {
 		Bit8u sdrive;						/* The Drive the search is taking place */
-		Bit8u sname[8];						/* The Search pattern for the filename */		
+		Bit8u sname[8];						/* The Search pattern for the filename */
 		Bit8u sext[3];						/* The Search pattern for the extenstion */
 		Bit8u sattr;						/* The Attributes that need to be found */
 		Bit16u dirID;						/* custom: dir-search ID for multiple searches at the same time */
@@ -530,7 +530,7 @@ private:
 		Bit8u sft_entries;
 		Bit8u share_attributes;
 		Bit8u extra_info;
-		/* Maybe swap file_handle and sft_entries now that fcbs 
+		/* Maybe swap file_handle and sft_entries now that fcbs
 		 * aren't stored in the psp filetable anymore */
 		Bit8u file_handle;
 		Bit8u reserved[4];
@@ -561,7 +561,7 @@ private:
 	struct sMCB {
 		Bit8u type;
 		Bit16u psp_segment;
-		Bit16u size;	
+		Bit16u size;
 		Bit8u unused[3];
 		Bit8u filename[8];
 	} GCC_ATTRIBUTE(packed);
@@ -573,15 +573,15 @@ private:
 class DOS_SDA : public MemStruct {
 public:
 	DOS_SDA(Bit16u _seg,Bit16u _offs) { SetPt(_seg,_offs); }
-	void Init();   
+	void Init();
 	void SetDrive(Bit8u _drive) { sSave(sSDA,current_drive, _drive); }
 	void SetDTA(Bit32u _dta) { sSave(sSDA,current_dta, _dta); }
 	void SetPSP(Bit16u _psp) { sSave(sSDA,current_psp, _psp); }
 	Bit8u GetDrive(void) { return (Bit8u)sGet(sSDA,current_drive); }
 	Bit16u GetPSP(void) { return (Bit16u)sGet(sSDA,current_psp); }
 	Bit32u GetDTA(void) { return (Bit32u)sGet(sSDA,current_dta); }
-	
-	
+
+
 private:
 	#ifdef _MSC_VER
 	#pragma pack (1)
@@ -621,11 +621,11 @@ struct DOS_Block {
 	RealPt dta(){return DOS_SDA(DOS_SDA_SEG,DOS_SDA_OFS).GetDTA();};
 	void dta(RealPt _dta){DOS_SDA(DOS_SDA_SEG,DOS_SDA_OFS).SetDTA(_dta);};
 	Bit8u return_code,return_mode;
-	
+
 	Bit8u current_drive;
 	bool verify;
 	bool breakcheck;
-	bool echo;          // if set to true dev_con::read will echo input 
+	bool echo;          // if set to true dev_con::read will echo input
 	bool direct_output;
 	struct  {
 		RealPt mediaid;
@@ -644,7 +644,7 @@ struct DOS_Block {
 extern DOS_Block dos;
 
 static INLINE Bit8u RealHandle(Bit16u handle) {
-	DOS_PSP psp(dos.psp());	
+	DOS_PSP psp(dos.psp());
 	return psp.GetFileHandle(handle);
 }
 
