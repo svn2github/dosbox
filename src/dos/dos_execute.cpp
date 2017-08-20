@@ -292,14 +292,6 @@ static bool LoadExeHeader(Bit16u fhandle, bool& iscom, EXE_Header& head)
 }
 
 bool DOS_Execute(const char * name, const bool iscom, const EXE_Header& head, const Bitu headersize, const Bitu imagesize, const Bit8u *codebuf, const RealPt *relocations, DOS_ParamBlock& block, const Bit8u flags) {
-	{
-		FILE *exec_log = fopen("DOS_Execute.log", "ab");
-		if (exec_log)
-		{
-			fprintf(exec_log, "%s %d\n", name, flags);
-			fclose(exec_log);
-		}
-	}
 	Bit16u pspseg,envseg,loadseg,memsize;
 
 	if (flags!=OVERLAY) {
