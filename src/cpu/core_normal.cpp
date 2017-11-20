@@ -30,6 +30,7 @@
 
 #if C_DEBUG
 #include "debug.h"
+#include "calltrace.h"
 #endif
 
 #if (!C_CORE_INLINE)
@@ -39,7 +40,7 @@
 #define SaveMb(off,val)	mem_writeb(off,val)
 #define SaveMw(off,val)	mem_writew(off,val)
 #define SaveMd(off,val)	mem_writed(off,val)
-#else 
+#else
 #include "paging.h"
 #define LoadMb(off) mem_readb_inline(off)
 #define LoadMw(off) mem_readw_inline(off)
@@ -146,6 +147,7 @@ Bits CPU_Core_Normal_Run(void) {
 		BaseSS=SegBase(ss);
 		core.base_val_ds=ds;
 #if C_DEBUG
+	CALLTRACE_Trace();
 #if C_HEAVY_DEBUG
 		if (DEBUG_HeavyIsBreakpoint()) {
 			FillFlags();
@@ -162,7 +164,7 @@ restart_opcode:
 		#include "core_normal/prefix_66_0f.h"
 		default:
 		illegal_opcode:
-#if C_DEBUG	
+#if C_DEBUG
 			{
 				Bitu len=(GETIP-reg_eip);
 				LOADIP;
@@ -206,4 +208,3 @@ Bits CPU_Core_Normal_Trap_Run(void) {
 void CPU_Core_Normal_Init(void) {
 
 }
-
