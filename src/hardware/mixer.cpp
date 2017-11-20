@@ -451,7 +451,7 @@ static void MIXER_Mix_NoSound(void) {
 	}
 	/* Set values for next tick */
 	mixer.tick_counter += mixer.tick_add;
-	mixer.needed += (mixer.tick_counter >> TICK_SHIFT);
+	mixer.needed = (mixer.tick_counter >> TICK_SHIFT);
 	mixer.tick_counter &= TICK_MASK;
 	mixer.done=0;
 }
@@ -502,7 +502,7 @@ static void SDLCALL MIXER_CallBack(void * userdata, Uint8 *stream, int len) {
 			if(diff > (mixer.min_needed<<1)) diff = mixer.min_needed<<1;
 			if(diff > (mixer.min_needed>>1))
 				mixer.tick_add = ((mixer.freq-(diff/5)) << TICK_SHIFT)/1000;
-			else if (diff > (mixer.min_needed>>4))
+			else if (diff > (mixer.min_needed>>2))
 				mixer.tick_add = ((mixer.freq-(diff>>3)) << TICK_SHIFT)/1000;
 			else
 				mixer.tick_add = (mixer.freq<< TICK_SHIFT)/1000;
