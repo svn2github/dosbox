@@ -176,9 +176,9 @@ void DOS_Shell::InputCommand(char * line) {
 					break;
 				case 15:		/* Shift-Tab */
 					if (l_completion.size()) {
-						if (it_completion == l_completion.begin()) it_completion = l_completion.end (); 
+						if (it_completion == l_completion.begin()) it_completion = l_completion.end ();
 						it_completion--;
-		
+
 						if (it_completion->length()) {
 							for (;str_index > completion_index; str_index--) {
 								// removes all characters
@@ -344,10 +344,10 @@ void DOS_Shell::InputCommand(char * line) {
 				line[++str_len]=0;//new end (as the internal buffer moved one place to the right
 				size--;
 			};
-		   
+
 			line[str_index]=c;
 			str_index ++;
-			if (str_index > str_len){ 
+			if (str_index > str_len){
 				line[str_index] = '\0';
 				str_len++;
 				size--;
@@ -372,11 +372,11 @@ void DOS_Shell::InputCommand(char * line) {
 }
 
 std::string full_arguments = "";
-bool DOS_Shell::Execute(char * name,char * args) {
-/* return true  => don't check for hardware changes in do_command 
+bool DOS_Shell::Execute(const char * name, const char * args) {
+/* return true  => don't check for hardware changes in do_command
  * return false =>       check for hardware changes in do_command */
 	char fullname[DOS_PATHLENGTH+4]; //stores results from Which
-	char* p_fullname;
+	const char* p_fullname;
 	char line[CMD_MAXLINE];
 	if(strlen(args)!= 0){
 		if(*args != ' '){ //put a space in front
@@ -405,55 +405,56 @@ bool DOS_Shell::Execute(char * name,char * args) {
 	if (!p_fullname) return false;
 	strcpy(fullname,p_fullname);
 	const char* extension = strrchr(fullname,'.');
-	
+
 	/*always disallow files without extension from being executed. */
 	/*only internal commands can be run this way and they never get in this handler */
 	if(extension == 0)
 	{
 		//Check if the result will fit in the parameters. Else abort
 		if(strlen(fullname) >( DOS_PATHLENGTH - 1) ) return false;
-		char temp_name[DOS_PATHLENGTH+4],* temp_fullname;
+		char temp_name[DOS_PATHLENGTH+4];
+		const char* temp_fullname;
 		//try to add .com, .exe and .bat extensions to filename
-		
+
 		strcpy(temp_name,fullname);
 		strcat(temp_name,".COM");
 		temp_fullname=Which(temp_name);
 		if (temp_fullname) { extension=".com";strcpy(fullname,temp_fullname); }
 
-		else 
+		else
 		{
 			strcpy(temp_name,fullname);
 			strcat(temp_name,".EXE");
 			temp_fullname=Which(temp_name);
 		 	if (temp_fullname) { extension=".exe";strcpy(fullname,temp_fullname);}
 
-			else 
+			else
 			{
 				strcpy(temp_name,fullname);
 				strcat(temp_name,".BAT");
 				temp_fullname=Which(temp_name);
 		 		if (temp_fullname) { extension=".bat";strcpy(fullname,temp_fullname);}
 
-				else  
+				else
 				{
 		 			return false;
 				}
-			
-			}	
+
+			}
 		}
 	}
-	
-	if (strcasecmp(extension, ".bat") == 0) 
+
+	if (strcasecmp(extension, ".bat") == 0)
 	{	/* Run the .bat file */
 		/* delete old batch file if call is not active*/
 		bool temp_echo=echo; /*keep the current echostate (as delete bf might change it )*/
 		if(bf && !call) delete bf;
 		bf=new BatchFile(this,fullname,name,line);
 		echo=temp_echo; //restore it.
-	} 
-	else 
+	}
+	else
 	{	/* only .bat .exe .com extensions maybe be executed by the shell */
-		if(strcasecmp(extension, ".com") !=0) 
+		if(strcasecmp(extension, ".com") !=0)
 		{
 			if(strcasecmp(extension, ".exe") !=0) return false;
 		}
@@ -481,10 +482,10 @@ bool DOS_Shell::Execute(char * name,char * args) {
 		/* Copy command line in stack block too */
 		MEM_BlockWrite(SegPhys(ss)+reg_sp+0x100,&cmdtail,128);
 
-		
+
 		/* Split input line up into parameters, using a few special rules, most notable the one for /AAA => A\0AA
 		 * Qbix: It is extremly messy, but this was the only way I could get things like /:aa and :/aa to work correctly */
-		
+
 		//Prepare string first
 		char parseline[258] = { 0 };
 		for(char *pl = line,*q = parseline; *pl ;pl++,q++) {
@@ -512,11 +513,11 @@ bool DOS_Shell::Execute(char * name,char * args) {
 		while(skip < 256 && parseline[skip] == 0) skip++;
 		FCB_Parsename(dos.psp(),0x5C,0x01,parseline + skip,&add);
 		skip += add;
-		
+
 		//Move to next argument if it exists
 		while(parseline[skip] != 0) skip++;  //This is safe as there is always a 0 in parseline at the end.
 		while(skip < 256 && parseline[skip] == 0) skip++; //Which is higher than 256
-		FCB_Parsename(dos.psp(),0x6C,0x01,parseline + skip,&add); 
+		FCB_Parsename(dos.psp(),0x6C,0x01,parseline + skip,&add);
 
 		block.exec.fcb1=RealMake(dos.psp(),0x5C);
 		block.exec.fcb2=RealMake(dos.psp(),0x6C);
@@ -559,7 +560,7 @@ static const char * com_ext=".COM";
 static const char * exe_ext=".EXE";
 static char which_ret[DOS_PATHLENGTH+4];
 
-char * DOS_Shell::Which(char * name) {
+const char * DOS_Shell::Which(const char * name) {
 	size_t name_len = strlen(name);
 	if(name_len >= DOS_PATHLENGTH) return 0;
 
@@ -600,7 +601,7 @@ char * DOS_Shell::Which(char * name) {
 
 		if(i_path == DOS_PATHLENGTH) {
 			/* If max size. move till next ; and terminate path */
-			while(*pathenv && (*pathenv != ';')) 
+			while(*pathenv && (*pathenv != ';'))
 				pathenv++;
 			path[DOS_PATHLENGTH - 1] = 0;
 		} else path[i_path] = 0;
@@ -611,7 +612,7 @@ char * DOS_Shell::Which(char * name) {
 			if(len >= (DOS_PATHLENGTH - 2)) continue;
 
 			if(path[len - 1] != '\\') {
-				strcat(path,"\\"); 
+				strcat(path,"\\");
 				len++;
 			}
 
