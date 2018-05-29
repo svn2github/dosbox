@@ -78,11 +78,11 @@ public:
 	void InputCommand(char * line);
 	void ShowPrompt();
 	void DoCommand(char * cmd);
-	bool Execute(char * name,char * args);
+	bool Execute(const char * name,const char * args);
 	/* Checks if it matches a hardware-property */
 	bool CheckConfig(char* cmd_in,char*line);
 /* Some internal used functions */
-	char * Which(char * name);
+	const char * Which(const char * name);
 /* Some supported commands */
 	void CMD_HELP(char * args);
 	void CMD_CLS(char * args);
